@@ -9,16 +9,18 @@
  */
 export const CONFIG_PROPS = {
   /** Unique application identifier for OAF registration */
-  APP_ID: "123123", //update this with your app-id
+  APP_ID: "123123", // update this with your real app-id from Coupa
+
   HOST_URLS: {
     LOCALHOST: "http://localhost:46880",
     HTTPS_PROTOCOL: "https://",
-    DEFAULT_HOST: "https://example.com",
+    DEFAULT_HOST: "https://example.com", // optional: replace with a safe default
   },
 
+  // IMPORTANT: these names must match what Coupa sends
   URL_PARAMS: {
-    COUPA_HOST: "coupahost",
-    IFRAME_ID: "floating_iframe_id",
+    COUPA_HOST: "coupahost",            // domain only, e.g. ey-in-demo.coupacloud.com
+    IFRAME_ID: "floating_iframe_id",    // Coupa adds this automatically
   },
 };
 
@@ -35,11 +37,11 @@ export const LAYOUT_STATES = {
 };
 
 export const LAYOUT_DIMENSIONS = {
-  MAXIMIZE_HEIGHT_RATIO: 0.6, // 60% of viewport height
-  MAXIMIZE_WIDTH_RATIO: 0.3,  // 30% of viewport width
-  SIDE_PANEL_HEIGHT_RATIO: 0.95, // 95% of viewport height
-  SIDE_PANEL_WIDTH_RATIO: 0.3,   // 30% of viewport width
-  MINIMIZE_SIZE: 200, // 200px x 200px for minimized state
+  MAXIMIZE_HEIGHT_RATIO: 0.6,     // 60% of viewport height
+  MAXIMIZE_WIDTH_RATIO: 0.3,      // 30% of viewport width
+  SIDE_PANEL_HEIGHT_RATIO: 0.95,  // 95% of viewport height
+  SIDE_PANEL_WIDTH_RATIO: 0.3,    // 30% of viewport width
+  MINIMIZE_SIZE: 200,             // 200px x 200px for minimized state
 };
 
 export const DISPATCH_ACTIONS = {
@@ -64,7 +66,5 @@ export const ERROR_MESSAGES = {
 
 export const SUCCESS_MESSAGES = {
   GENERIC: "Operation completed successfully",
-  RESIZE: (height, width) =>
-    `Window resized successfully to ${height}x${width}`,
+  RESIZE: (height, width) => `Window resized successfully to ${height}x${width}`,
 };
-

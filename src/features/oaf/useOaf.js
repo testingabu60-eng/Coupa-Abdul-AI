@@ -29,6 +29,15 @@ import {
 } from "./oafConstants";
 
 /**
+ * Tiny safe no-op event emitter so .on/.off/.emit exist in standalone mode
+ */
+const createNoopEmitter = () => ({
+  on: () => {},
+  off: () => {},
+  emit: () => {},
+});
+
+/**
  * Custom React hook for interacting with OAF (Open Application Framework).
  * Provides state and a set of actions for controlling OAF layout and features.
  */
@@ -142,7 +151,7 @@ export const useOaf = () => {
         targetLayoutState
       );
     } else {
-      // should use LAYOUT_STATES.MAXIMIZED as fallback
+      // default fallback
       await handleOAFResizeOperation(
         dispatch,
         maximizeCalculator,
@@ -212,7 +221,6 @@ export const useOaf = () => {
     return oafExecuteAction(() => subscribeToEvents(eventsSubscriptionData));
   };
 
-
   /**
    * Get the page context using OAF
    * @returns {Promise<object>} The page context data
@@ -239,8 +247,12 @@ export const useOaf = () => {
     return oafExecuteAction(() => launchUiButtonClickProcess(processId));
   };
 
-  // Get OAF app events (observable/event emitter)
-  const oafAppEvents = oafEvents();
+  // Get OAF app events (observable/event emitter), with a safe fallback for standalone mode
+  const rawEvents = oafEvents && typeof oafEvents === "function" ? oafEvents() : null;
+  const oafAppEvents =
+    rawEvents && typeof rawEvents.on === "function" && typeof rawEvents.off === "function"
+      ? rawEvents
+      : createNoopEmitter();
 
   // Return state and all app actions
   return {
