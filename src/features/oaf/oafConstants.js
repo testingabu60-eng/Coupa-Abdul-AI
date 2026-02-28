@@ -8,19 +8,39 @@
  * @typedef {Object}
  */
 export const CONFIG_PROPS = {
-  /** Unique application identifier for OAF registration */
-  APP_ID: "1234567890", // update this with your real app-id from Coupa
+  /** Unique application identifier for OAF registration (from Coupa “Client ID”) */
+  APP_ID: "1234567890", // ← matches your Installed App's Client ID
 
   HOST_URLS: {
+    /**
+     * Used when running Vite dev server (npm run dev), not in production deploys.
+     * Keep as-is unless your local bridge uses a different port.
+     */
     LOCALHOST: "http://localhost:46880",
+
+    /** Protocol prefix used when coupahost comes without scheme */
     HTTPS_PROTOCOL: "https://",
-    DEFAULT_HOST: "https://example.com", // optional: replace with a safe default
+
+    /**
+     * Safe default Coupa host when none is provided via URL or environment.
+     * Since your tenant is ey-in-demo.coupacloud.com, set that here.
+     * (In production, oafConfig prefers the URL param `coupahost` if present.)
+     */
+    DEFAULT_HOST: "https://ey-in-demo.coupacloud.com",
   },
 
-  // IMPORTANT: these names must match what Coupa sends
+  // IMPORTANT: these names must match what Coupa sends in the URL
   URL_PARAMS: {
-    COUPA_HOST: "coupahost",            // domain only, e.g. ey-in-demo.coupacloud.com
-    IFRAME_ID: "floating_iframe_id",    // Coupa adds this automatically
+    /**
+     * Coupa passes only the domain (no protocol) when launching the BYOA app,
+     * e.g. ey-in-demo.coupacloud.com
+     */
+    COUPA_HOST: "coupahost",
+
+    /**
+     * Coupa provides a floating iframe id under this name.
+     */
+    IFRAME_ID: "floating_iframe_id",
   },
 };
 
