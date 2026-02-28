@@ -5,7 +5,13 @@ import { useOaf } from "../../oaf/useOaf";
 import { EVENT_TYPES, LABELS, STYLES } from "../constants";
 
 const { MENU_ITEM_CLASSES } = STYLES;
-const { HEADER_LABELS, APP_TITLE } = LABELS;
+
+// Prefer an environment variable so you can change branding without code changes.
+// If not set, default to "Abdul AI Agent".
+const TITLE =
+  import.meta?.env?.VITE_APP_TITLE?.trim?.() ||
+  LABELS?.APP_TITLE?.trim?.() ||
+  "Abdul AI Agent";
 
 // Header component for the Oaf App UI
 const Header = () => {
@@ -53,8 +59,7 @@ const Header = () => {
         <header className="coupa-primary text-white p-3 flex items-center justify-between rounded-t-lg shadow-md cursor-grab">
           {/* App Title */}
           <div className="flex items-center space-x-2">
-            {/* <CheckSquare className="w-5 h-5" /> */}
-            <h1 className="text-lg font-semibold truncate">{APP_TITLE}</h1>
+            <h1 className="text-lg font-semibold truncate">{TITLE}</h1>
           </div>
 
           {/* Controls: Ellipsis menu and Close button */}
@@ -74,18 +79,20 @@ const Header = () => {
                 id="control-menu"
                 className="absolute right-0 top-full mt-3 w-48 bg-white border border-gray-200 rounded-lg shadow-xl z-50 py-1 origin-top-right animate-in fade-in-0 zoom-in-95"
               >
-                {/* Menu Items */}
                 {[
-                  { action: minimiseApp, label: HEADER_LABELS.MINIMIZE },
-                  { action: maximiseApp, label: HEADER_LABELS.MAXIMIZE },
+                  { action: minimiseApp, label: LABELS.HEADER_LABELS.MINIMIZE },
+                  { action: maximiseApp, label: LABELS.HEADER_LABELS.MAXIMIZE },
                   {
                     action: makeAppSidepanel,
-                    label: HEADER_LABELS.MAKE_SIDE_PANEL,
+                    label: LABELS.HEADER_LABELS.MAKE_SIDE_PANEL,
                   },
-                  { action: dockAppToLeft, label: HEADER_LABELS.DOCK_TO_LEFT },
+                  {
+                    action: dockAppToLeft,
+                    label: LABELS.HEADER_LABELS.DOCK_TO_LEFT,
+                  },
                   {
                     action: dockAppToRight,
-                    label: HEADER_LABELS.DOCK_TO_RIGHT,
+                    label: LABELS.HEADER_LABELS.DOCK_TO_RIGHT,
                   },
                 ].map(({ action, label }) => (
                   <button
