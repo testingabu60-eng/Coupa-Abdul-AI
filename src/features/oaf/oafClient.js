@@ -33,14 +33,27 @@ const noOafMsg = (op) =>
 
 /**
  * Safely execute an OAF call. Returns normalized result or a failure object.
+ * opts.allowVoidSuccess: treat undefined/void responses as success (for fire-and-forget OAF calls)
  */
-const callOaf = async (factory, opName) => {
+const callOaf = async (factory, opName, opts = {}) => {
+  const { allowVoidSuccess = false } = opts;
+
   if (!oafApp) return failure(noOafMsg(opName));
 
   try {
     const resp = await factory();
-    // If SDK returns nothing, keep it readable
-    if (resp == null) return failure(`No response from OAF for ${opName}`);
+
+    // Some enterprise APIs are imperative and return no payload.
+    if (resp == null) {
+      if (allowVoidSuccess) {
+        return {
+          status: STATUSES.SUCCESS,
+          message: `${opName} requested`,
+        };
+      }
+      return failure(`No response from OAF for ${opName}`);
+    }
+
     return resp;
   } catch (err) {
     return failure(`OAF ${opName} failed`, err);
@@ -51,13 +64,17 @@ const callOaf = async (factory, opName) => {
  * Sets the size of the OAF application window.
  */
 export const setSize = async (height, width) =>
-  callOaf(() => oafApp.setSize({ height, width }), "setSize");
+  callOaf(() => oafApp.setSize({ height, width }), "setSize", { allowVoidSuccess: true });
 
 /**
  * Moves the OAF application window to a specific location.
  */
 export const moveAppToLocation = async (top, left, resetToDock) =>
-  callOaf(() => oafApp.moveToLocation({ top, left, resetToDock }), "moveToLocation");
+  callOaf(
+    () => oafApp.moveToLocation({ top, left, resetToDock }),
+    "moveToLocation",
+    { allowVoidSuccess: true }
+  );
 
 /**
  * Retrieves the current page context using OAF.
@@ -86,24 +103,29 @@ export const getPageContext = async () => {
 export const moveAndResize = async (top, left, height, width, resetToDock) =>
   callOaf(
     () => oafApp.moveAndResize({ top, left, height, width, resetToDock }),
-    "moveAndResize"
+    "moveAndResize",
+    { allowVoidSuccess: true }
   );
 
 /**
  * Navigates the user to a specific path using OAF.
  */
 export const navigatePath = async (path) =>
-  callOaf(() => oafApp.navigateToPath(path), "navigateToPath");
+  callOaf(() => oafApp.navigateToPath(path), "navigateToPath", { allowVoidSuccess: true });
 
 /**
  * Opens an EasyForm using the OAF application.
+ * Many tenants return no body — accept void as success.
  */
 export const openEasyForm = async (formId) => {
-  // enterprise API is only available inside Coupa
   if (!oafApp || !oafApp.enterprise) {
     return failure(noOafMsg("openEasyForm"));
   }
-  return callOaf(() => oafApp.enterprise.openEasyForm(formId), "openEasyForm");
+  return callOaf(
+    () => oafApp.enterprise.openEasyForm(formId),
+    "openEasyForm",
+    { allowVoidSuccess: true }
+  );
 };
 
 /**
@@ -151,6 +173,7 @@ export const launchUiButtonClickProcess = async (processId) => {
   }
   return callOaf(
     () => oafApp.enterprise.launchUiButtonClickProcess(processId),
-    "launchUiButtonClickProcess"
+    "launchUiButtonClickProcess",
+    { allowVoidSuccess: true }
   );
 };
