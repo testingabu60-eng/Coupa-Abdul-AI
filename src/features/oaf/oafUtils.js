@@ -9,16 +9,34 @@ import {
 } from "./oafConstants";
 
 /**
+ * Safely extract a readable message from any response/error shape
+ */
+const pickMessage = (resp) => {
+  if (!resp) return null;
+
+  // 1) direct message
+  if (resp.message && typeof resp.message === "string") return resp.message;
+
+  // 2) standard error object
+  if (resp.error && typeof resp.error?.message === "string") return resp.error.message;
+
+  // 3) Coupa aggregated errors
+  if (Array.isArray(resp.error_data) && resp.error_data.length > 0) {
+    return resp.error_data
+      .map((e) => `${e?.error_key || STATUSES.ERROR} : ${e?.error_attribute || e?.error_message || "Unknown"}`)
+      .join("\n");
+  }
+
+  // 4) rawError/exception
+  if (resp.rawError && typeof resp.rawError?.message === "string") return resp.rawError.message;
+
+  // 5) generic
+  return null;
+};
+
+/**
  * Handles the resize operation for the app window by calculating new dimensions,
  * moving and resizing the window, and updating layout state and position.
- *
- * @async
- * @function handleOAFResizeOperation
- * @param {Function} dispatch - Function to update state.
- * @param {Function} dimensionCalculator - Function to calculate new dimensions. Receives viewport, window dimensions.
- * @param {Object} newLayoutPosition - New layout position to be set after resizing.
- * @param {Object} newLayoutState - New layout state to be set after resizing.
- * @returns {Promise<void>} Resolves when the resize operation is complete.
  */
 const handleOAFResizeOperation = async (
   dispatch,
@@ -29,6 +47,7 @@ const handleOAFResizeOperation = async (
   try {
     // 1. Fetch Page Context
     const pageContext = await getPageContext();
+
     if (!pageContext || pageContext.status !== STATUSES.SUCCESS) {
       dispatch({
         type: DISPATCH_ACTIONS.SET_ERROR,
@@ -38,34 +57,26 @@ const handleOAFResizeOperation = async (
     }
 
     // Extract viewport and window dimensions
-    const viewPortHeight = pageContext.data.pageDetails.viewPortHeight;
-    const viewPortWidth = pageContext.data.pageDetails.viewPortWidth;
+    const viewPortHeight = pageContext?.data?.pageDetails?.viewPortHeight ?? window.innerHeight;
+    const viewPortWidth = pageContext?.data?.pageDetails?.viewPortWidth ?? window.innerWidth;
     const windowHeight = window.innerHeight;
     const windowWidth = window.innerWidth;
 
     // 2. Calculate new dimensions using provided calculator
     const { top, left, height, width } = dimensionCalculator(
-      {
-        viewPortHeight,
-        viewPortWidth,
-      },
-      {
-        windowHeight,
-        windowWidth,
-      },
+      { viewPortHeight, viewPortWidth },
+      { windowHeight, windowWidth },
       newLayoutPosition
     );
 
     // 3. Move and resize the app window
     const resp = await moveAndResize(top, left, height, width, false);
 
-    if (resp.status === STATUSES.SUCCESS) {
+    if (resp && resp.status === STATUSES.SUCCESS) {
       // Dispatch success response
       dispatch({
         type: DISPATCH_ACTIONS.SET_RESPONSE,
-        payload: {
-          message: SUCCESS_MESSAGES.RESIZE(height, width),
-        },
+        payload: { message: SUCCESS_MESSAGES.RESIZE(height, width) },
       });
 
       // 4. Optionally update the layout
@@ -86,14 +97,14 @@ const handleOAFResizeOperation = async (
       // Dispatch error response
       dispatch({
         type: DISPATCH_ACTIONS.SET_ERROR,
-        payload: resp.message,
+        payload: pickMessage(resp) || ERROR_MESSAGES.UNKNOWN,
       });
     }
   } catch (error) {
     // Dispatch error for exceptions
     dispatch({
       type: DISPATCH_ACTIONS.SET_ERROR,
-      payload: error.message,
+      payload: error?.message || ERROR_MESSAGES.UNKNOWN,
     });
   }
 };
@@ -204,64 +215,55 @@ const closeCalculator = ({ viewPortHeight, viewPortWidth }) => {
 };
 
 /**
- * Executes an OAF action and returns a result object with multiple values.
+ * Executes an OAF action and returns a normalized result object.
+ * It never throws and never assumes resp/message exist.
  * @param {Function} action - Async function to execute
- * @returns {Promise<Object>} Result object with message, status, and additional fields based on response
+ * @returns {Promise<Object>} { message, status, data?, error_data?, error_action?, rawResponse?, error? }
  */
 const oafExecuteAction = async (action) => {
   try {
     const resp = await action();
-    let message = resp.message;
-    const status = resp.status;
+
+    // No response at all
+    if (resp == null) {
+      return {
+        message: "No response from OAF (are you outside Coupa?)",
+        status: STATUSES.ERROR,
+        rawResponse: resp,
+      };
+    }
+
+    const status = resp.status || (resp.success ? STATUSES.SUCCESS : STATUSES.ERROR);
+    const message =
+      pickMessage(resp) ||
+      (status === STATUSES.SUCCESS ? SUCCESS_MESSAGES.GENERIC : ERROR_MESSAGES.UNKNOWN);
 
     if (status === STATUSES.SUCCESS) {
-      const result = {
+      return {
         message,
         status,
-        ...(resp.data && { data: resp.data }), // Include data only if it exists
+        ...(resp.data && { data: resp.data }),
         rawResponse: resp,
       };
-      return result;
-    } else if (status === STATUSES.ERROR) {
-      // Aggregate error messages if available
-      if (Array.isArray(resp.error_data)) {
-        message = resp.error_data
-          .map((errorItem) => `${errorItem.error_key || STATUSES.ERROR} : ${errorItem.error_attribute || errorItem.error_message }`)
-          .join("\n");
-      } else {
-        message = message || ERROR_MESSAGES.UNKNOWN;
-      }
-
-      // Create result object for error case
-      const result = {
-        message,
-        status,
-        error_action: resp.action,
-        error_data: resp.error_data,
-        rawResponse: resp,
-      };
-      return result;
-    } else {
-      // Unexpected status
-      message = message || ERROR_MESSAGES.UNKNOWN;
-      const result = {
-        message,
-        status,
-        rawResponse: resp,
-      };
-      return result;
     }
+
+    // Treat everything else as error/failure
+    return {
+      message,
+      status: STATUSES.ERROR,
+      error_action: resp.action,
+      error_data: resp.error_data,
+      rawResponse: resp,
+    };
   } catch (error) {
-    // Handle exceptions
-    const result = {
-      message: error.message,
+    return {
+      message: error?.message || ERROR_MESSAGES.UNKNOWN,
       status: STATUSES.ERROR,
       error_data: null,
       error_action: null,
       rawResponse: null,
-      error: error,
+      error,
     };
-    return result;
   }
 };
 
