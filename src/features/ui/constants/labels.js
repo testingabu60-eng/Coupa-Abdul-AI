@@ -6,7 +6,7 @@ export const HEADER_LABELS = {
   DOCK_TO_RIGHT: 'Dock To Right',
 };
 
-export const APP_TITLE = 'Abdul Khader AI Agent';
+export const APP_TITLE = 'Abdul AI Agent';
 
 export const UI_BUTTON_CLICK_PROCESS_LABELS = {
   INPUT_PLACEHOLDER: 'UI Button Click Process ID',
