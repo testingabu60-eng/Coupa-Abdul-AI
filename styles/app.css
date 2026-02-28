@@ -1,0 +1,45 @@
+/* Coupa Custom Variables */
+:root {
+  --coupa-primary: #0F4C81;
+  --coupa-accent-hover: #1565C0;
+  --byoa-circle-color: #fff;
+}
+
+/* Coupa Primary Background */
+.coupa-primary {
+  background-color: var(--coupa-primary);
+}
+
+/* Coupa Accent Hover */
+.coupa-accent-hover:hover {
+  background-color: var(--coupa-accent-hover);
+}
+
+/* BYOA Circle Component */
+.byoa-circle {
+  width: 80px;
+  height: 80px;
+  background-color: var(--coupa-primary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--byoa-circle-color);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 4px 6px -1px var(--coupa-primary), 0 2px 4px -1px rgba(106, 14, 14, 0.06);
+}
+
+.byoa-circle:hover {
+  background-color: var(--coupa-accent-hover);
+  transform: translateY(-1px);
+}
+
+.expanded-view { 
+  border-radius: 12px;
+  box-shadow: 0px 0px 5px var(--coupa-primary);
+  margin: 5px;
+}
+
