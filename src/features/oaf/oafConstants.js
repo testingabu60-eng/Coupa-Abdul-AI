@@ -9,7 +9,7 @@
  */
 export const CONFIG_PROPS = {
   /** Unique application identifier for OAF registration */
-  APP_ID: "123123", // update this with your real app-id from Coupa
+  APP_ID: "1234567890", // update this with your real app-id from Coupa
 
   HOST_URLS: {
     LOCALHOST: "http://localhost:46880",
