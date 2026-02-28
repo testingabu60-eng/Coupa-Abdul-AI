@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "build:client": "npm --prefix packages/@coupa/open-assistant-framework-client run build",
+    "prebuild": "npm run build:client",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
