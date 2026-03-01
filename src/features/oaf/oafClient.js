@@ -15,15 +15,27 @@ const createNoopEmitter = () => ({
 
 let oafApp = null;
 try {
-  // IMPORTANT: we pass the dynamic iframeId & coupahost from oafConfig.js (which reads the URL params)
+  // IMPORTANT: pass dynamic iframeId & coupahost (read from URL by oafConfig.js)
+  // Add aliases (clientId + host) to satisfy stricter client/host builds.
   oafApp = initOAFInstance({
-    appId: config.appId,
-    coupahost: config.coupahost,
-    iframeId: config.iframeId,
+    appId:    config.appId,
+    clientId: config.appId,
+
+    // For binding: use domain-only host, and provide it under both keys.
+    coupahost: config.coupahost, // e.g., "ey-in-demo.coupacloud.com"
+    host:      config.coupahost,
+
+    iframeId:  config.iframeId,
   });
 
   // DEBUG: log config & current URL to confirm the iframe id came from the query string
-  console.log("[OAF CONFIG AT RUNTIME]", config);
+  console.log("[OAF CONFIG AT RUNTIME]", {
+    appId: config.appId,
+    clientId: config.appId,
+    coupahost: config.coupahost,
+    host: config.coupahost,
+    iframeId: config.iframeId,
+  });
   console.log("[LOCATION HREF]", window.location.href);
 } catch (e) {
   console.error("[OAF init error]", e);
