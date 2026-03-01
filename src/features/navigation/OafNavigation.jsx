@@ -8,7 +8,7 @@ import {
   getPageContext,
   oafEvents,
   setSize,
-  moveAppToLocation
+  moveAppToLocation,
 } from "../oaf/oafClient";
 import oafConfig from "../oaf/oafConfig";
 
@@ -117,7 +117,7 @@ export default function OafNavigation() {
     "/purchase-orders",         // boilerplate example
     "/suppliers/new",           // boilerplate example
     "/invoices?status=pending", // boilerplate example
-    "/purchase_orders"          // underscore variant
+    "/purchase_orders",         // underscore variant
   ];
 
   return (
@@ -217,7 +217,7 @@ const styles = {
   testBtn: {
     padding: "6px 10px",
     background: "#f3f4f6",
-    border: "1px solid "#d1d5db",
+    border: "1px solid #d1d5db",
     borderRadius: 6,
     cursor: "pointer",
   },
