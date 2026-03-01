@@ -2,44 +2,71 @@
 import { useEffect, useState } from "react";
 import { useOaf } from "../oaf/useOaf";
 
-export default function OafNavigation() {
-  const [input, setInput] = useState("/requisition_headers");
-  const [log, setLog] = useState("Ready.");
-  const {
-    oafNavigatePath,
-    oafGetPageContext,
-    // expose getUserContext via useOaf if you prefer; we'll call client directly for now:
-  } = useOaf();
+// We import client functions directly for diagnostics
+import { getUserContext, getPageContext, oafEvents } from "../oaf/oafClient";
 
-  // lazy import to avoid circulars
-  const [client, setClient] = useState(null);
+export default function OafNavigation() {
+  const [input, setInput] = useState("/purchase-orders");
+  const [log, setLog] = useState("Ready.");
+  const { oafNavigatePath } = useOaf();
+
+  const append = (line) =>
+    setLog((prev) => (prev ? `${prev}\n${line}` : line));
+
+  // Subscribe to OAF events (some hosts emit errors/info via events)
   useEffect(() => {
-    import("../oaf/oafClient").then(mod => setClient(mod));
+    const ev = oafEvents && typeof oafEvents === "function" ? oafEvents() : null;
+    const handler = (evt) => {
+      console.log("[OAF EVENT]", evt?.type || evt, evt);
+      append(`[OAF EVENT] ${evt?.type || "message"} ${JSON.stringify(evt)}`);
+    };
+
+    if (ev && ev.on) {
+      ev.on("error", handler);
+      ev.on("oafError", handler);
+      ev.on("message", handler);
+      ev.on("subscribedAttributeResponse", handler);
+    }
+
+    return () => {
+      if (ev && ev.off) {
+        ev.off("error", handler);
+        ev.off("oafError", handler);
+        ev.off("message", handler);
+        ev.off("subscribedAttributeResponse", handler);
+      }
+    };
   }, []);
 
-  const append = (line) => setLog((prev) => `${prev}\n${line}`);
+  // --- Diagnostics button action ---
+  const runDiagnostics = async () => {
+    setLog("Running diagnostics…");
 
-  const doDiagnostics = async () => {
-    setLog("Running diagnostics...");
     try {
-      const userCtx = await client.getUserContext();
-      append(`getUserContext: ${userCtx.status || "ok"}`);
-      append(JSON.stringify(userCtx, null, 2));
-
-      const pageCtx = await oafGetPageContext();
-      append(`getPageContext: ${pageCtx.status || "ok"}`);
-      append(JSON.stringify(pageCtx, null, 2));
+      const uc = await getUserContext();
+      append("getUserContext:");
+      append(JSON.stringify(uc, null, 2));
     } catch (e) {
-      append(`Diagnostics error: ${e?.message || e}`);
+      append("getUserContext threw:");
+      append(String(e?.message || e));
+    }
+
+    try {
+      const pc = await getPageContext();
+      append("getPageContext:");
+      append(JSON.stringify(pc, null, 2));
+    } catch (e) {
+      append("getPageContext threw:");
+      append(String(e?.message || e));
     }
   };
 
-  const handleNavigate = async (path) => {
-    setLog(`Navigating to ${path} ...`);
-    const resp = await oafNavigatePath(path);
-    append(`navigateToPath response: ${resp?.status || "unknown"}`);
-    if (resp?.message) append(resp.message);
-    if (resp?.rawError) append(JSON.stringify(resp.rawError, null, 2));
+  // --- Navigate button action ---
+  const handleNavigate = async () => {
+    setLog(`Navigating to: ${input}`);
+    const resp = await oafNavigatePath(input);
+    append("navigateToPath response:");
+    append(JSON.stringify(resp, null, 2));
   };
 
   return (
@@ -49,49 +76,71 @@ export default function OafNavigation() {
       <div style={styles.row}>
         <input
           style={styles.input}
-          placeholder="Enter Coupa path"
+          placeholder="Enter Coupa path (e.g., /purchase-orders)"
           value={input}
           onChange={(e) => setInput(e.target.value)}
         />
-        <button style={styles.button} onClick={() => handleNavigate(input)}>
+        <button style={styles.button} onClick={handleNavigate}>
           Navigate to Path
         </button>
       </div>
 
       <div style={{ marginTop: 12 }}>
-        <strong>Quick tests (from Coupa boilerplate):</strong>
-        <div style={styles.testRow}>
-          <button onClick={() => handleNavigate("/purchase-orders")} style={styles.testBtn}>
-            /purchase-orders
-          </button>
-          <button onClick={() => handleNavigate("/suppliers/new")} style={styles.testBtn}>
-            /suppliers/new
-          </button>
-          <button onClick={() => handleNavigate("/invoices?status=pending")} style={styles.testBtn}>
-            /invoices?status=pending
-          </button>
-        </div>
-      </div>
-
-      <div style={{ marginTop: 12 }}>
-        <button onClick={doDiagnostics} style={styles.buttonGhost}>
-          Run Diagnostics (connection & context)
+        <button style={styles.buttonGhost} onClick={runDiagnostics}>
+          Run Diagnostics (getUserContext & getPageContext)
         </button>
       </div>
 
-      <textarea readOnly value={log} style={styles.log} />
+      <textarea
+        readOnly
+        value={log}
+        style={styles.log}
+        aria-label="Diagnostics log"
+      />
     </div>
   );
 }
 
 const styles = {
-  card: { padding: 16, background: "#fff", border: "1px solid #e6e8eb", borderRadius: 8 },
+  card: {
+    padding: 16,
+    background: "#fff",
+    border: "1px solid #e6e8eb",
+    borderRadius: 8,
+  },
   title: { margin: 0, marginBottom: 12 },
   row: { display: "flex", gap: 8, alignItems: "center" },
-  input: { flex: 1, padding: "8px 10px", border: "1px solid #c9cdd2", borderRadius: 6 },
-  button: { padding: "8px 12px", background: "#0d6efd", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" },
-  buttonGhost: { padding: "8px 12px", background: "transparent", color: "#0d6efd", border: "1px solid #0d6efd", borderRadius: 6, cursor: "pointer" },
-  testRow: { display: "flex", gap: 8, marginTop: 6 },
-  testBtn: { padding: "6px 10px", background: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: 6, cursor: "pointer" },
-  log: { width: "100%", height: 140, marginTop: 12, padding: 10, border: "1px solid #d1d5db", borderRadius: 6, fontFamily: "monospace", fontSize: 12, whiteSpace: "pre" },
+  input: {
+    flex: 1,
+    padding: "8px 10px",
+    border: "1px solid #c9cdd2",
+    borderRadius: 6,
+  },
+  button: {
+    padding: "8px 12px",
+    background: "#0d6efd",
+    color: "#fff",
+    border: "none",
+    borderRadius: 6,
+    cursor: "pointer",
+  },
+  buttonGhost: {
+    padding: "8px 12px",
+    background: "transparent",
+    color: "#0d6efd",
+    border: "1px solid #0d6efd",
+    borderRadius: 6,
+    cursor: "pointer",
+  },
+  log: {
+    width: "100%",
+    height: 200,
+    marginTop: 12,
+    padding: 10,
+    border: "1px solid #d1d5db",
+    borderRadius: 6,
+    fontFamily: "monospace",
+    fontSize: 12,
+    whiteSpace: "pre",
+  },
 };
