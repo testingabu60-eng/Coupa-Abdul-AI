@@ -28,22 +28,22 @@ const getCoupaHost = () => {
   if (!import.meta.env.PROD) {
     return CONFIG_PROPS.HOST_URLS.LOCALHOST;
   }
-
-  const fromUrl = normalizeHost(getParam(CONFIG_PROPS.URL_PARAMS.COUPA_HOST)); // "coupahost"
-  return fromUrl || CONFIG_PROPS.HOST_URLS.DEFAULT_HOST; // https://ey-in-demo.coupacloud.com
+  const fromUrl = getParam(CONFIG_PROPS.URL_PARAMS.COUPA_HOST, "host"); // "coupahost"
+  return normalizeHost(fromUrl) || CONFIG_PROPS.HOST_URLS.DEFAULT_HOST; // https://ey-in-demo.coupacloud.com
 };
 
 /**
  * Get the runtime floating iFrame id.
- * IMPORTANT: Never hard-code this in PROD. Coupa generates a new id each launch and passes it as ?floating_iframe_id=...
+ * IMPORTANT: Never hard-code this in PROD. Coupa generates a new id each launch and passes it in the URL.
  */
 const getIframeId = () => {
+  // Accept common name variants defensively
   const id =
     getParam(
-      CONFIG_PROPS.URL_PARAMS.IFRAME_ID, // "floating_iframe_id"
+      CONFIG_PROPS.URL_PARAMS.IFRAME_ID, // "floating_iframe_id" (documented in BYOA boilerplates)
+      "iframe_id",
       "iframeId",
-      "iframe-id",
-      "iframe_id"
+      "floatingIframeId"
     );
 
   if (id) return id;

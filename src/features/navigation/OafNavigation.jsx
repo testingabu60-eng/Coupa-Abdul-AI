@@ -10,9 +10,10 @@ import {
   setSize,
   moveAppToLocation
 } from "../oaf/oafClient";
+import oafConfig from "../oaf/oafConfig";
 
 export default function OafNavigation() {
-  const [input, setInput] = useState("/purchase-orders");
+  const [input, setInput] = useState("/requisition_headers");
   const [log, setLog] = useState("Ready.");
   const { oafNavigatePath } = useOaf();
 
@@ -93,13 +94,20 @@ export default function OafNavigation() {
     append(JSON.stringify(resp, null, 2));
   };
 
-  // Quick test buttons with common core routes
+  // Show current URL and the effective config we passed to the SDK
+  const showConfig = () => {
+    append("[LOCATION HREF]:");
+    append(window.location.href);
+    append("[OAF CONFIG]:");
+    append(JSON.stringify(oafConfig, null, 2));
+  };
+
   const quickPaths = [
-    "/purchase-orders",
-    "/suppliers/new",
-    "/invoices?status=pending",
-    "/purchase_orders",        // underscore variant, sometimes needed
-    "/requisition_headers"     // your original test
+    "/requisition_headers",    // your chosen route
+    "/purchase-orders",        // boilerplate example
+    "/suppliers/new",          // boilerplate example
+    "/invoices?status=pending",// boilerplate example
+    "/purchase_orders"         // underscore variant
   ];
 
   return (
@@ -109,7 +117,7 @@ export default function OafNavigation() {
       <div style={styles.row}>
         <input
           style={styles.input}
-          placeholder="Enter Coupa path (e.g., /purchase-orders)"
+          placeholder="Enter Coupa path (e.g., /requisition_headers)"
           value={input}
           onChange={(e) => setInput(e.target.value)}
         />
@@ -136,7 +144,7 @@ export default function OafNavigation() {
         </div>
       </div>
 
-      <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+      <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: 'wrap' }}>
         <button style={styles.buttonGhost} onClick={runDiagnostics}>
           Run Diagnostics
         </button>
@@ -145,6 +153,9 @@ export default function OafNavigation() {
         </button>
         <button style={styles.buttonGhost} onClick={testMove}>
           Test Move
+        </button>
+        <button style={styles.buttonGhost} onClick={showConfig}>
+          Show Config & URL
         </button>
       </div>
 
@@ -199,7 +210,7 @@ const styles = {
   },
   log: {
     width: "100%",
-    height: 220,
+    height: 260,
     marginTop: 12,
     padding: 10,
     border: "1px solid #d1d5db",
