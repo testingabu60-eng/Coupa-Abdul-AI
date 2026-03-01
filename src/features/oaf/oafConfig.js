@@ -1,3 +1,4 @@
+// src/features/oaf/oafConfig.js
 import { CONFIG_PROPS } from "./oafConstants";
 
 // Always parse what’s in the URL right now
@@ -19,37 +20,26 @@ const normalizeHost = (h) => {
 };
 
 /**
- * Determines the Coupa host URL based on environment, URL parameters and env vars.
- * Priority (prod): URL ?coupahost=... or ?host=...  -> Vercel env VITE_COUPA_HOST -> DEFAULT_HOST
- * In dev (vite), LOCALHOST is used for the local bridge.
+ * Determines the Coupa host URL based on environment.
+ * In PROD we hard-force your tenant host.
+ * In DEV we keep the local OAF bridge (so you can still dev locally).
  */
 const getCoupaHost = () => {
-  // When running locally (vite dev), use the local OAF bridge by default
   if (!import.meta.env.PROD) {
     return CONFIG_PROPS.HOST_URLS.LOCALHOST;
   }
-
-  // In production builds (Vercel):
-  const fromUrl = normalizeHost(getParam(CONFIG_PROPS.URL_PARAMS.COUPA_HOST, "host"));
-  const fromEnv = normalizeHost(import.meta.env.VITE_COUPA_HOST); // optional fallback
-  const chosen = fromUrl || fromEnv || CONFIG_PROPS.HOST_URLS.DEFAULT_HOST;
-
-  if (!fromUrl) {
-    console.warn(
-      "[OAF] No coupahost in URL; using",
-      fromEnv ? "Vercel env VITE_COUPA_HOST" : "CONFIG_PROPS.HOST_URLS.DEFAULT_HOST",
-      "=>",
-      chosen
-    );
-  }
-  return chosen;
+  return "https://ey-in-demo.coupacloud.com"; // YOUR TENANT
 };
 
 /**
  * Get an iframe id compatible with Coupa & standalone runs.
- * Accept multiple common variants, and fallback to a generated standalone id.
+ * For PROD we hard-force your floating iframe id.
  */
 const getIframeId = () => {
+  if (import.meta.env.PROD) {
+    return "69"; // YOUR IFRAME ID
+  }
+  // In dev, accept various forms or generate a fallback
   const id =
     getParam(
       CONFIG_PROPS.URL_PARAMS.IFRAME_ID, // "floating_iframe_id" (Coupa)
@@ -71,14 +61,13 @@ const getIframeId = () => {
  * @property {string} iframeId
  */
 const config = {
-  appId: CONFIG_PROPS.APP_ID,
-  coupahost: getCoupaHost(),
-  iframeId: getIframeId(),
+  appId: "1234567890",           // YOUR APP ID
+  coupahost: getCoupaHost(),     // forced in PROD
+  iframeId: getIframeId(),       // forced in PROD
 };
 
 /**
- * Validate critical fields (don’t hard-fail if iframeId is a fallback;
- * that’s expected in standalone/preview mode).
+ * Validate critical fields.
  */
 const validateConfig = (cfg) => {
   if (!cfg.appId) {

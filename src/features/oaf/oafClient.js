@@ -1,4 +1,4 @@
-// oafClient.js
+// src/features/oaf/oafClient.js
 // Wrapper functions for interacting with the Open Assistant Framework (OAF) API.
 // Provides graceful fallbacks when not connected to OAF (e.g., standalone on Vercel).
 
@@ -60,6 +60,23 @@ const callOaf = async (factory, opName, opts = {}) => {
   }
 };
 
+// --- utilities ---
+const normalizePath = (p) => {
+  if (!p) return "";
+  // If a full URL was pasted (https://ey-in-demo.coupacloud.com/xxx), strip origin
+  try {
+    const u = new URL(p);
+    p = u.pathname + (u.search || "");
+  } catch {
+    // not a full URL
+  }
+  p = p.trim();
+  if (!p.startsWith("/")) p = "/" + p;
+  // collapse accidental double slashes (but we don't have protocol at this point)
+  p = p.replace(/\/{2,}/g, "/");
+  return p;
+};
+
 /**
  * Sets the size of the OAF application window.
  */
@@ -109,9 +126,21 @@ export const moveAndResize = async (top, left, height, width, resetToDock) =>
 
 /**
  * Navigates the user to a specific path using OAF.
+ * Tries the object signature first ({ path }), then falls back to plain string,
+ * to be resilient across SDK versions.
  */
 export const navigatePath = async (path) =>
-  callOaf(() => oafApp.navigateToPath(path), "navigateToPath", { allowVoidSuccess: true });
+  callOaf(async () => {
+    const normalized = normalizePath(path);
+
+    // Try { path } signature
+    try {
+      return await oafApp.navigateToPath({ path: normalized });
+    } catch (e) {
+      // Fallback to plain string
+      return await oafApp.navigateToPath(normalized);
+    }
+  }, "navigateToPath", { allowVoidSuccess: true });
 
 /**
  * Opens an EasyForm using the OAF application.
@@ -147,7 +176,7 @@ export const subscribeToLocation = async (subscriptionData) =>
   callOaf(() => oafApp.listenToDataLocation(subscriptionData), "listenToDataLocation");
 
 /**
- * Subscribes to oaf events using the OAF application.
+ * Subscribes to OAF events using the OAF application.
  */
 export const subscribeToEvents = async (eventsSubscriptionData) =>
   callOaf(() => oafApp.listenToOafEvents(eventsSubscriptionData), "listenToOafEvents");
