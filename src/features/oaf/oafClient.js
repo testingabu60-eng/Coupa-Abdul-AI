@@ -1,8 +1,8 @@
 // src/features/oaf/oafClient.js
 // Wrapper functions for interacting with the Open Assistant Framework (OAF) API.
-// Provides graceful fallbacks when not connected to OAF (e.g., standalone on Vercel).
+// This version uses OafApp (constructor) and logs runtime config to help verify IDs/host.
 
-import { initOAFInstance } from "@coupa/open-assistant-framework-client";
+import { OafApp } from "@coupa/open-assistant-framework-client";
 import config from "./oafConfig";
 import { STATUSES } from "./oafConstants";
 
@@ -13,23 +13,21 @@ const createNoopEmitter = () => ({
   emit: () => {},
 });
 
-// --- try to initialize OAF; if it fails, keep null ---
 let oafApp = null;
 try {
-  oafApp = initOAFInstance(config);
+  oafApp = new OafApp({
+    appId: config.appId,
+    coupahost: config.coupahost,
+    iframeId: config.iframeId,
+  });
 
-  // DEBUG: print the config the client is using at runtime
-  // It should show:
-  //   appId: "1234567890"
-  //   coupahost: "https://ey-in-demo.coupacloud.com"
-  //   iframeId: "69"
-  // Remove or comment out once verified.
+  // DEBUG: log config & current URL to confirm the iframe id came from the query string
   console.log("[OAF CONFIG AT RUNTIME]", config);
+  console.log("[LOCATION HREF]", window.location.href);
 } catch (_e) {
   oafApp = null;
 }
 
-// --- helpers to normalize responses ---
 const failure = (message, rawError) => ({
   status: STATUSES.ERROR,
   message,
@@ -47,7 +45,6 @@ const callOaf = async (factory, opName) => {
   try {
     const resp = await factory();
     if (resp == null) {
-      // If host returned nothing, surface as a clear failure so we can see it.
       return failure(`No response from OAF for ${opName}`);
     }
     return resp;
@@ -56,23 +53,18 @@ const callOaf = async (factory, opName) => {
   }
 };
 
-// --- utilities ---
+// --- helpers ---
 const normalizePath = (p) => {
   if (!p) return "";
-  // Remove any stray bullet (•) or weird whitespace a user may paste
+  // Strip any stray bullet characters / unusual whitespace
   p = p.replace(/\u2022/g, "").trim();
-
-  // If a full URL was pasted (https://ey-in-demo.coupacloud.com/xxx), strip origin
+  // If a full URL was pasted, strip origin
   try {
     const u = new URL(p);
     p = u.pathname + (u.search || "");
-  } catch {
-    // not a full URL
-  }
+  } catch { /* not a full URL */ }
   if (!p.startsWith("/")) p = "/" + p;
-  // collapse accidental double slashes
-  p = p.replace(/\/{2,}/g, "/");
-  return p;
+  return p.replace(/\/{2,}/g, "/");
 };
 
 // ====== BASIC CONTEXT CALLS (prove we are connected) ======
@@ -83,34 +75,27 @@ export const getPageContext = async () =>
   callOaf(() => oafApp.getPageContext(), "getPageContext");
 
 // ====== NAVIGATION (dual-signature, resilient) ======
-/**
- * Navigates the user to a specific path using OAF.
- * Tries the object signature first ({ path }), then falls back to plain string.
- */
 export const navigatePath = async (path) =>
   callOaf(async () => {
     const normalized = normalizePath(path);
 
-    // Try { path } signature
+    // Try { path } signature first
     try {
       const r = await oafApp.navigateToPath({ path: normalized });
       if (r != null) return r;
-      // host returned void → try string
-      const r2 = await oafApp.navigateToPath(normalized);
+      const r2 = await oafApp.navigateToPath(normalized); // fallback to string
       return r2 ?? { status: "noop", message: "Host returned no body (string signature)" };
     } catch (eObj) {
-      // object failed → try string
       try {
         const r2 = await oafApp.navigateToPath(normalized);
         return r2 ?? { status: "noop", message: "Host returned no body (string signature)" };
       } catch (eStr) {
-        // Surface both errors so we can see which signature fails
         throw { objectSignatureError: eObj, stringSignatureError: eStr, sentPath: normalized };
       }
     }
   }, "navigateToPath");
 
-// ====== WINDOW MANAGEMENT (to prove permissions work) ======
+// ====== WINDOW MANAGEMENT (prove permissions) ======
 export const setSize = async (height, width) =>
   callOaf(() => oafApp.setSize({ height, width }), "setSize");
 
@@ -122,9 +107,7 @@ export const moveAndResize = async (top, left, height, width, resetToDock) =>
 
 // ====== ENTERPRISE / FORMS ======
 export const openEasyForm = async (formId) => {
-  if (!oafApp || !oafApp.enterprise) {
-    return failure(noOafMsg("openEasyForm"));
-  }
+  if (!oafApp || !oafApp.enterprise) return failure(noOafMsg("openEasyForm"));
   return callOaf(() => oafApp.enterprise.openEasyForm(formId), "openEasyForm");
 };
 
@@ -148,9 +131,7 @@ export const getElementMeta = async (formStructure) =>
   callOaf(() => oafApp.getElementMeta(formStructure), "getElementMeta");
 
 export const launchUiButtonClickProcess = async (processId) => {
-  if (!oafApp || !oafApp.enterprise) {
-    return failure(noOafMsg("launchUiButtonClickProcess"));
-  }
+  if (!oafApp || !oafApp.enterprise) return failure(noOafMsg("launchUiButtonClickProcess"));
   return callOaf(
     () => oafApp.enterprise.launchUiButtonClickProcess(processId),
     "launchUiButtonClickProcess"

@@ -1,7 +1,7 @@
 // src/features/oaf/oafConfig.js
 import { CONFIG_PROPS } from "./oafConstants";
 
-// Always parse what’s in the URL right now
+// Parse current URL params (Coupa app appends these when launching the floating iFrame)
 const urlParams = new URLSearchParams(window.location.search);
 
 const getParam = (...names) => {
@@ -20,65 +20,59 @@ const normalizeHost = (h) => {
 };
 
 /**
- * Determines the Coupa host URL based on environment.
- * In PROD we hard-force your tenant host.
- * In DEV we keep the local OAF bridge (so you can still dev locally).
+ * Determine the Coupa host.
+ * - In PROD: prefer the URL param (?coupahost=...), else fall back to your tenant default.
+ * - In DEV: use local bridge.
  */
 const getCoupaHost = () => {
   if (!import.meta.env.PROD) {
     return CONFIG_PROPS.HOST_URLS.LOCALHOST;
   }
-  return "https://ey-in-demo.coupacloud.com"; // YOUR TENANT
+
+  const fromUrl = normalizeHost(getParam(CONFIG_PROPS.URL_PARAMS.COUPA_HOST)); // "coupahost"
+  return fromUrl || CONFIG_PROPS.HOST_URLS.DEFAULT_HOST; // https://ey-in-demo.coupacloud.com
 };
 
 /**
- * Get an iframe id compatible with Coupa & standalone runs.
- * For PROD we hard-force your floating iframe id.
+ * Get the runtime floating iFrame id.
+ * IMPORTANT: Never hard-code this in PROD. Coupa generates a new id each launch and passes it as ?floating_iframe_id=...
  */
 const getIframeId = () => {
-  if (import.meta.env.PROD) {
-    return "69"; // YOUR IFRAME ID
-  }
-  // In dev, accept various forms or generate a fallback
   const id =
     getParam(
-      CONFIG_PROPS.URL_PARAMS.IFRAME_ID, // "floating_iframe_id" (Coupa)
+      CONFIG_PROPS.URL_PARAMS.IFRAME_ID, // "floating_iframe_id"
       "iframeId",
       "iframe-id",
       "iframe_id"
-    ) ||
-    `standalone-${(crypto?.randomUUID?.() || Math.random().toString(36).slice(2))}`;
+    );
 
-  return id;
+  if (id) return id;
+
+  // If Coupa didn't pass it (e.g., you opened Vercel URL directly), generate a fallback
+  const fallback = `standalone-${(crypto?.randomUUID?.() || Math.random().toString(36).slice(2))}`;
+  if (import.meta.env.PROD) {
+    console.warn("[OAF] No floating_iframe_id in URL; using fallback:", fallback);
+  }
+  return fallback;
 };
 
 /**
- * Configuration object for the OAF (Open Assistant Framework) feature.
- *
- * @typedef {Object} OafConfig
- * @property {string} appId
- * @property {string} coupahost
- * @property {string} iframeId
+ * Final OAF config object used by the SDK.
  */
 const config = {
-  appId: "1234567890",           // YOUR APP ID
-  coupahost: getCoupaHost(),     // forced in PROD
-  iframeId: getIframeId(),       // forced in PROD
+  appId: "1234567890",        // Your Coupa iFrame "Client ID"
+  coupahost: getCoupaHost(),  // Prefer URL param in PROD
+  iframeId: getIframeId(),    // Must be taken from URL; do NOT hard-code
 };
 
 /**
  * Validate critical fields.
  */
 const validateConfig = (cfg) => {
-  if (!cfg.appId) {
-    throw new Error("App ID is required for OAF configuration");
-  }
-  if (!cfg.coupahost) {
-    throw new Error("Coupa host is required for OAF configuration");
-  }
-  // Only warn for iframe id in prod if it looks like a fallback
+  if (!cfg.appId) throw new Error("App ID is required for OAF configuration");
+  if (!cfg.coupahost) throw new Error("Coupa host is required for OAF configuration");
   if (import.meta.env.PROD && cfg.iframeId.startsWith("standalone-")) {
-    console.warn("[OAF] No floating_iframe_id in URL; using standalone fallback:", cfg.iframeId);
+    console.warn("[OAF] Using standalone iframeId in PROD (app not launched from Coupa?):", cfg.iframeId);
   }
 };
 
