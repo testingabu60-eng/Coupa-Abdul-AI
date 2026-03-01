@@ -2,18 +2,23 @@
 import { useEffect, useState } from "react";
 import { useOaf } from "../oaf/useOaf";
 
-// We import client functions directly for diagnostics
-import { getUserContext, getPageContext, oafEvents } from "../oaf/oafClient";
+// Direct client calls for diagnostics & window tests
+import {
+  getUserContext,
+  getPageContext,
+  oafEvents,
+  setSize,
+  moveAppToLocation
+} from "../oaf/oafClient";
 
 export default function OafNavigation() {
   const [input, setInput] = useState("/purchase-orders");
   const [log, setLog] = useState("Ready.");
   const { oafNavigatePath } = useOaf();
 
-  const append = (line) =>
-    setLog((prev) => (prev ? `${prev}\n${line}` : line));
+  const append = (line) => setLog((prev) => (prev ? `${prev}\n${line}` : line));
 
-  // Subscribe to OAF events (some hosts emit errors/info via events)
+  // Subscribe to OAF host events (some builds emit errors/info via events)
   useEffect(() => {
     const ev = oafEvents && typeof oafEvents === "function" ? oafEvents() : null;
     const handler = (evt) => {
@@ -27,7 +32,6 @@ export default function OafNavigation() {
       ev.on("message", handler);
       ev.on("subscribedAttributeResponse", handler);
     }
-
     return () => {
       if (ev && ev.off) {
         ev.off("error", handler);
@@ -38,10 +42,9 @@ export default function OafNavigation() {
     };
   }, []);
 
-  // --- Diagnostics button action ---
+  // --- Diagnostics: prove we are embedded and permitted ---
   const runDiagnostics = async () => {
     setLog("Running diagnostics…");
-
     try {
       const uc = await getUserContext();
       append("getUserContext:");
@@ -61,13 +64,43 @@ export default function OafNavigation() {
     }
   };
 
+  // --- Window management (proves host permissions are honored) ---
+  const testResize = async () => {
+    try {
+      append("Resizing iFrame to 500x360 (host-side) …");
+      const r = await setSize(500, 360);
+      append(`setSize => ${JSON.stringify(r, null, 2)}`);
+    } catch (e) {
+      append(`setSize threw => ${String(e?.message || e)}`);
+    }
+  };
+
+  const testMove = async () => {
+    try {
+      append("Moving iFrame to top-left (host-side) …");
+      const r = await moveAppToLocation(50, 30, false);
+      append(`moveToLocation => ${JSON.stringify(r, null, 2)}`);
+    } catch (e) {
+      append(`moveToLocation threw => ${String(e?.message || e)}`);
+    }
+  };
+
   // --- Navigate button action ---
   const handleNavigate = async () => {
-    setLog(`Navigating to: ${input}`);
+    append(`Navigating to: ${input}`);
     const resp = await oafNavigatePath(input);
     append("navigateToPath response:");
     append(JSON.stringify(resp, null, 2));
   };
+
+  // Quick test buttons with common core routes
+  const quickPaths = [
+    "/purchase-orders",
+    "/suppliers/new",
+    "/invoices?status=pending",
+    "/purchase_orders",        // underscore variant, sometimes needed
+    "/requisition_headers"     // your original test
+  ];
 
   return (
     <div style={styles.card}>
@@ -85,9 +118,33 @@ export default function OafNavigation() {
         </button>
       </div>
 
-      <div style={{ marginTop: 12 }}>
+      <div style={{ marginTop: 8 }}>
+        <strong>Quick tests:</strong>
+        <div style={styles.testRow}>
+          {quickPaths.map((p) => (
+            <button
+              key={p}
+              style={styles.testBtn}
+              onClick={() => {
+                setInput(p);
+                handleNavigate();
+              }}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
         <button style={styles.buttonGhost} onClick={runDiagnostics}>
-          Run Diagnostics (getUserContext & getPageContext)
+          Run Diagnostics
+        </button>
+        <button style={styles.buttonGhost} onClick={testResize}>
+          Test Resize
+        </button>
+        <button style={styles.buttonGhost} onClick={testMove}>
+          Test Move
         </button>
       </div>
 
@@ -132,9 +189,17 @@ const styles = {
     borderRadius: 6,
     cursor: "pointer",
   },
+  testRow: { display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 },
+  testBtn: {
+    padding: "6px 10px",
+    background: "#f3f4f6",
+    border: "1px solid #d1d5db",
+    borderRadius: 6,
+    cursor: "pointer",
+  },
   log: {
     width: "100%",
-    height: 200,
+    height: 220,
     marginTop: 12,
     padding: 10,
     border: "1px solid #d1d5db",
