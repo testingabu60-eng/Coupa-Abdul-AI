@@ -1,8 +1,8 @@
 // src/features/oaf/oafClient.js
 // Wrapper functions for interacting with the Open Assistant Framework (OAF) API.
-// This version uses OafApp (constructor) and logs runtime config to help verify IDs/host.
+// Uses initOAFInstance (supported by your SDK build) and logs runtime config to verify IDs/host.
 
-import { OafApp } from "@coupa/open-assistant-framework-client";
+import { initOAFInstance } from "@coupa/open-assistant-framework-client";
 import config from "./oafConfig";
 import { STATUSES } from "./oafConstants";
 
@@ -15,7 +15,8 @@ const createNoopEmitter = () => ({
 
 let oafApp = null;
 try {
-  oafApp = new OafApp({
+  // IMPORTANT: we pass the dynamic iframeId & coupahost from oafConfig.js (which reads the URL params)
+  oafApp = initOAFInstance({
     appId: config.appId,
     coupahost: config.coupahost,
     iframeId: config.iframeId,
@@ -24,10 +25,12 @@ try {
   // DEBUG: log config & current URL to confirm the iframe id came from the query string
   console.log("[OAF CONFIG AT RUNTIME]", config);
   console.log("[LOCATION HREF]", window.location.href);
-} catch (_e) {
+} catch (e) {
+  console.error("[OAF init error]", e);
   oafApp = null;
 }
 
+// --- helpers to normalize responses ---
 const failure = (message, rawError) => ({
   status: STATUSES.ERROR,
   message,
@@ -45,6 +48,7 @@ const callOaf = async (factory, opName) => {
   try {
     const resp = await factory();
     if (resp == null) {
+      // Surface as a clear failure so we can see the host is ignoring it
       return failure(`No response from OAF for ${opName}`);
     }
     return resp;
@@ -53,7 +57,7 @@ const callOaf = async (factory, opName) => {
   }
 };
 
-// --- helpers ---
+// --- utilities ---
 const normalizePath = (p) => {
   if (!p) return "";
   // Strip any stray bullet characters / unusual whitespace
@@ -62,7 +66,9 @@ const normalizePath = (p) => {
   try {
     const u = new URL(p);
     p = u.pathname + (u.search || "");
-  } catch { /* not a full URL */ }
+  } catch {
+    /* not a full URL */
+  }
   if (!p.startsWith("/")) p = "/" + p;
   return p.replace(/\/{2,}/g, "/");
 };
@@ -75,6 +81,10 @@ export const getPageContext = async () =>
   callOaf(() => oafApp.getPageContext(), "getPageContext");
 
 // ====== NAVIGATION (dual-signature, resilient) ======
+/**
+ * Navigates the user to a specific path using OAF.
+ * Tries the object signature first ({ path }), then falls back to plain string.
+ */
 export const navigatePath = async (path) =>
   callOaf(async () => {
     const normalized = normalizePath(path);
@@ -83,13 +93,16 @@ export const navigatePath = async (path) =>
     try {
       const r = await oafApp.navigateToPath({ path: normalized });
       if (r != null) return r;
-      const r2 = await oafApp.navigateToPath(normalized); // fallback to string
+      // Host returned void → try string signature
+      const r2 = await oafApp.navigateToPath(normalized);
       return r2 ?? { status: "noop", message: "Host returned no body (string signature)" };
     } catch (eObj) {
+      // Object call failed → try string
       try {
         const r2 = await oafApp.navigateToPath(normalized);
         return r2 ?? { status: "noop", message: "Host returned no body (string signature)" };
       } catch (eStr) {
+        // Expose both errors so we can see which signature the host rejects
         throw { objectSignatureError: eObj, stringSignatureError: eStr, sentPath: normalized };
       }
     }
