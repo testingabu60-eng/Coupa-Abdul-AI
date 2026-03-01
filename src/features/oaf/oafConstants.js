@@ -35,12 +35,12 @@ export const CONFIG_PROPS = {
      * Coupa passes only the domain (no protocol) when launching the BYOA app,
      * e.g. ey-in-demo.coupacloud.com
      */
-    COUPA_HOST: "coupahost",
+    COUPA_HOST: "ey-in-demo.coupacloud.com",
 
     /**
      * Coupa provides a floating iframe id under this name.
      */
-    IFRAME_ID: "floating_iframe_id",
+    IFRAME_ID: "69",
   },
 };
 
