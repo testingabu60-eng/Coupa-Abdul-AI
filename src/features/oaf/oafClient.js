@@ -1,7 +1,4 @@
 // src/features/oaf/oafClient.js
-// Wrapper functions for interacting with the Open Assistant Framework (OAF) API.
-// Provides graceful fallbacks when not connected to OAF (e.g., standalone on Vercel).
-
 import { initOAFInstance } from "@coupa/open-assistant-framework-client";
 import config from "./oafConfig";
 import { STATUSES } from "./oafConstants";
@@ -13,15 +10,13 @@ const createNoopEmitter = () => ({
   emit: () => {},
 });
 
-// --- try to initialize OAF; if it fails, keep null ---
 let oafApp = null;
 try {
   oafApp = initOAFInstance(config);
-} catch (_e) {
+} catch {
   oafApp = null;
 }
 
-// --- helpers to normalize responses ---
 const failure = (message, rawError) => ({
   status: STATUSES.ERROR,
   message,
@@ -31,178 +26,74 @@ const failure = (message, rawError) => ({
 const noOafMsg = (op) =>
   `OAF is not connected (${op} unavailable in standalone). Open the app from within Coupa.`;
 
-/**
- * Safely execute an OAF call. Returns normalized result or a failure object.
- * opts.allowVoidSuccess: treat undefined/void responses as success (for fire-and-forget OAF calls)
- */
-const callOaf = async (factory, opName, opts = {}) => {
-  const { allowVoidSuccess = false } = opts;
-
+const callOaf = async (factory, opName) => {
   if (!oafApp) return failure(noOafMsg(opName));
-
   try {
     const resp = await factory();
-
-    // Some enterprise APIs are imperative and return no payload.
     if (resp == null) {
-      if (allowVoidSuccess) {
-        return {
-          status: STATUSES.SUCCESS,
-          message: `${opName} requested`,
-        };
-      }
+      // IMPORTANT: Do NOT treat void as success for navigate calls.
       return failure(`No response from OAF for ${opName}`);
     }
-
     return resp;
   } catch (err) {
     return failure(`OAF ${opName} failed`, err);
   }
 };
 
-// --- utilities ---
 const normalizePath = (p) => {
   if (!p) return "";
-  // If a full URL was pasted (https://ey-in-demo.coupacloud.com/xxx), strip origin
   try {
     const u = new URL(p);
     p = u.pathname + (u.search || "");
-  } catch {
-    // not a full URL
-  }
+  } catch {}
   p = p.trim();
   if (!p.startsWith("/")) p = "/" + p;
-  // collapse accidental double slashes (but we don't have protocol at this point)
-  p = p.replace(/\/{2,}/g, "/");
-  return p;
+  return p.replace(/\/{2,}/g, "/");
 };
 
-/**
- * Sets the size of the OAF application window.
- */
-export const setSize = async (height, width) =>
-  callOaf(() => oafApp.setSize({ height, width }), "setSize", { allowVoidSuccess: true });
+export const getUserContext = async () =>
+  callOaf(() => oafApp.getUserContext(), "getUserContext");
 
-/**
- * Moves the OAF application window to a specific location.
- */
-export const moveAppToLocation = async (top, left, resetToDock) =>
-  callOaf(
-    () => oafApp.moveToLocation({ top, left, resetToDock }),
-    "moveToLocation",
-    { allowVoidSuccess: true }
-  );
+export const getPageContext = async () =>
+  callOaf(() => oafApp.getPageContext(), "getPageContext");
 
-/**
- * Retrieves the current page context using OAF.
- * Fallback: return viewport details from the browser so layout math still works.
- */
-export const getPageContext = async () => {
-  if (!oafApp) {
-    // Fallback success payload to keep resize calculators working
-    return {
-      status: STATUSES.SUCCESS,
-      data: {
-        pageDetails: {
-          viewPortHeight: window?.innerHeight || 800,
-          viewPortWidth: window?.innerWidth || 1200,
-        },
-      },
-      message: "Standalone fallback page context",
-    };
-  }
-  return callOaf(() => oafApp.getPageContext(), "getPageContext");
-};
-
-/**
- * Moves and resizes the OAF application window.
- */
-export const moveAndResize = async (top, left, height, width, resetToDock) =>
-  callOaf(
-    () => oafApp.moveAndResize({ top, left, height, width, resetToDock }),
-    "moveAndResize",
-    { allowVoidSuccess: true }
-  );
-
-/**
- * Navigates the user to a specific path using OAF.
- * Tries the object signature first ({ path }), then falls back to plain string,
- * to be resilient across SDK versions.
- */
 export const navigatePath = async (path) =>
-  callOaf(async () => {
+  callOaf(() => {
     const normalized = normalizePath(path);
+    return oafApp.navigateToPath({ path: normalized }); // object signature only
+  }, "navigateToPath");
 
-    // Try { path } signature
-    try {
-      return await oafApp.navigateToPath({ path: normalized });
-    } catch (e) {
-      // Fallback to plain string
-      return await oafApp.navigateToPath(normalized);
-    }
-  }, "navigateToPath", { allowVoidSuccess: true });
+export const setSize = async (h, w) =>
+  callOaf(() => oafApp.setSize({ height: h, width: w }), "setSize");
 
-/**
- * Opens an EasyForm using the OAF application.
- * Many tenants return no body — accept void as success.
- */
+export const moveAppToLocation = async (top, left, resetToDock) =>
+  callOaf(() => oafApp.moveToLocation({ top, left, resetToDock }), "moveToLocation");
+
+export const moveAndResize = async (top, left, height, width, resetToDock) =>
+  callOaf(() => oafApp.moveAndResize({ top, left, height, width, resetToDock }), "moveAndResize");
+
 export const openEasyForm = async (formId) => {
-  if (!oafApp || !oafApp.enterprise) {
-    return failure(noOafMsg("openEasyForm"));
-  }
-  return callOaf(
-    () => oafApp.enterprise.openEasyForm(formId),
-    "openEasyForm",
-    { allowVoidSuccess: true }
-  );
+  if (!oafApp || !oafApp.enterprise) return failure(noOafMsg("openEasyForm"));
+  return callOaf(() => oafApp.enterprise.openEasyForm(formId), "openEasyForm");
 };
 
-/**
- * Reads form data using the OAF application.
- */
 export const readForm = async (readMetaData) =>
   callOaf(() => oafApp.readForm({ formMetaData: readMetaData }), "readForm");
 
-/**
- * Writes data to a form using the OAF application.
- */
 export const writeForm = async (writeData) =>
   callOaf(() => oafApp.writeForm(writeData), "writeForm");
 
-/**
- * Subscribes to data location changes using the OAF application.
- */
 export const subscribeToLocation = async (subscriptionData) =>
   callOaf(() => oafApp.listenToDataLocation(subscriptionData), "listenToDataLocation");
 
-/**
- * Subscribes to OAF events using the OAF application.
- */
 export const subscribeToEvents = async (eventsSubscriptionData) =>
   callOaf(() => oafApp.listenToOafEvents(eventsSubscriptionData), "listenToOafEvents");
 
-/**
- * Returns the OAF application's event emitter for subscribing to events.
- * Fallback to a safe no-op emitter in standalone mode.
- */
 export const oafEvents = () => (oafApp?.events ? oafApp.events : createNoopEmitter());
-
-/**
- * Retrieves metadata from a form or HTML element using OAF.
- */
 export const getElementMeta = async (formStructure) =>
   callOaf(() => oafApp.getElementMeta(formStructure), "getElementMeta");
 
-/**
- * Executes a workflow process by its ID.
- */
 export const launchUiButtonClickProcess = async (processId) => {
-  if (!oafApp || !oafApp.enterprise) {
-    return failure(noOafMsg("launchUiButtonClickProcess"));
-  }
-  return callOaf(
-    () => oafApp.enterprise.launchUiButtonClickProcess(processId),
-    "launchUiButtonClickProcess",
-    { allowVoidSuccess: true }
-  );
+  if (!oafApp || !oafApp.enterprise) return failure(noOafMsg("launchUiButtonClickProcess"));
+  return callOaf(() => oafApp.enterprise.launchUiButtonClickProcess(processId), "launchUiButtonClickProcess");
 };
