@@ -102,12 +102,22 @@ export default function OafNavigation() {
     append(JSON.stringify(oafConfig, null, 2));
   };
 
+  // Show parent window details (helps confirm we are embedded under the right host)
+  const showParentAndOrigin = () => {
+    const lines = [
+      `[window.origin]: ${window.origin}`,
+      `[document.referrer]: ${document.referrer}`,
+      `[iframe?]: ${window.top === window ? "no (top/self)" : "yes (embedded)"}`
+    ];
+    append(lines.join("\n"));
+  };
+
   const quickPaths = [
-    "/requisition_headers",    // your chosen route
-    "/purchase-orders",        // boilerplate example
-    "/suppliers/new",          // boilerplate example
-    "/invoices?status=pending",// boilerplate example
-    "/purchase_orders"         // underscore variant
+    "/requisition_headers",     // your chosen route
+    "/purchase-orders",         // boilerplate example
+    "/suppliers/new",           // boilerplate example
+    "/invoices?status=pending", // boilerplate example
+    "/purchase_orders"          // underscore variant
   ];
 
   return (
@@ -144,7 +154,7 @@ export default function OafNavigation() {
         </div>
       </div>
 
-      <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: 'wrap' }}>
+      <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button style={styles.buttonGhost} onClick={runDiagnostics}>
           Run Diagnostics
         </button>
@@ -156,6 +166,9 @@ export default function OafNavigation() {
         </button>
         <button style={styles.buttonGhost} onClick={showConfig}>
           Show Config & URL
+        </button>
+        <button style={styles.buttonGhost} onClick={showParentAndOrigin}>
+          Show Parent & Origin
         </button>
       </div>
 
@@ -204,7 +217,7 @@ const styles = {
   testBtn: {
     padding: "6px 10px",
     background: "#f3f4f6",
-    border: "1px solid #d1d5db",
+    border: "1px solid "#d1d5db",
     borderRadius: 6,
     cursor: "pointer",
   },

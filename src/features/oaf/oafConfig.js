@@ -12,35 +12,38 @@ const getParam = (...names) => {
   return null;
 };
 
-// If protocol is missing, prefix https://
-const normalizeHost = (h) => {
-  if (!h) return null;
-  if (/^https?:\/\//i.test(h)) return h; // already has protocol
-  return `${CONFIG_PROPS.HOST_URLS.HTTPS_PROTOCOL}${h}`;
-};
-
 /**
- * Determine the Coupa host.
- * - In PROD: prefer the URL param (?coupahost=...), else fall back to your tenant default.
- * - In DEV: use local bridge.
+ * Determine the Coupa host **domain** (no protocol).
+ * - In PROD: prefer the URL param (?coupahost=ey-in-demo.coupacloud.com),
+ *            else fall back to the DEFAULT_HOST but **strip protocol**.
+ * - In DEV: use local bridge hostname (strip protocol).
  */
-const getCoupaHost = () => {
+const getCoupaHostDomain = () => {
   if (!import.meta.env.PROD) {
-    return CONFIG_PROPS.HOST_URLS.LOCALHOST;
+    // strip protocol if present
+    return (CONFIG_PROPS.HOST_URLS.LOCALHOST || "")
+      .replace(/^https?:\/\//i, "")
+      .replace(/\/+$/, "");
   }
-  const fromUrl = getParam(CONFIG_PROPS.URL_PARAMS.COUPA_HOST, "host"); // "coupahost"
-  return normalizeHost(fromUrl) || CONFIG_PROPS.HOST_URLS.DEFAULT_HOST; // https://ey-in-demo.coupacloud.com
+
+  // coupa passes domain only: ey-in-demo.coupacloud.com
+  const fromUrl = getParam(CONFIG_PROPS.URL_PARAMS.COUPA_HOST, "host");
+  if (fromUrl) return fromUrl.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+
+  // fallback to your tenant default but as **domain only**
+  return (CONFIG_PROPS.HOST_URLS.DEFAULT_HOST || "")
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/+$/, "");
 };
 
 /**
- * Get the runtime floating iFrame id.
- * IMPORTANT: Never hard-code this in PROD. Coupa generates a new id each launch and passes it in the URL.
+ * Get the runtime floating iFrame id (from URL).
+ * IMPORTANT: Never hard‑code this in PROD. Coupa generates a new id each launch.
  */
 const getIframeId = () => {
-  // Accept common name variants defensively
   const id =
     getParam(
-      CONFIG_PROPS.URL_PARAMS.IFRAME_ID, // "floating_iframe_id" (documented in BYOA boilerplates)
+      CONFIG_PROPS.URL_PARAMS.IFRAME_ID, // "floating_iframe_id"
       "iframe_id",
       "iframeId",
       "floatingIframeId"
@@ -48,7 +51,6 @@ const getIframeId = () => {
 
   if (id) return id;
 
-  // If Coupa didn't pass it (e.g., you opened Vercel URL directly), generate a fallback
   const fallback = `standalone-${(crypto?.randomUUID?.() || Math.random().toString(36).slice(2))}`;
   if (import.meta.env.PROD) {
     console.warn("[OAF] No floating_iframe_id in URL; using fallback:", fallback);
@@ -58,19 +60,17 @@ const getIframeId = () => {
 
 /**
  * Final OAF config object used by the SDK.
+ * NOTE: coupahost is now **domain only** (no https://).
  */
 const config = {
-  appId: "1234567890",        // Your Coupa iFrame "Client ID"
-  coupahost: getCoupaHost(),  // Prefer URL param in PROD
-  iframeId: getIframeId(),    // Must be taken from URL; do NOT hard-code
+  appId: "1234567890",         // Your Coupa iFrame "Client ID" (must match exactly)
+  coupahost: getCoupaHostDomain(), // <-- domain only, e.g., "ey-in-demo.coupacloud.com"
+  iframeId: getIframeId(),     // From URL
 };
 
-/**
- * Validate critical fields.
- */
 const validateConfig = (cfg) => {
   if (!cfg.appId) throw new Error("App ID is required for OAF configuration");
-  if (!cfg.coupahost) throw new Error("Coupa host is required for OAF configuration");
+  if (!cfg.coupahost) throw new Error("Coupa host (domain) is required for OAF configuration");
   if (import.meta.env.PROD && cfg.iframeId.startsWith("standalone-")) {
     console.warn("[OAF] Using standalone iframeId in PROD (app not launched from Coupa?):", cfg.iframeId);
   }
